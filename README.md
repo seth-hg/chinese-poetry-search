@@ -24,20 +24,22 @@ NLP 模型使用清华大学提供的[BERT-CCPoem](https://github.com/THUNLP-AIP
     pip3 install -r requirements.txt
     ```
 
-3.  使用`generate.py`脚本对古诗词数据进行预处理。处理完后会在输出目录生成 2 个文件，`content.csv`包含了诗词的全部数据，`vectors.csv`包含了诗词的每个段落经过模型编码之后的向量数据。
+3.  使用`generate.py`脚本对古诗词数据进行预处理。处理完后会在输出目录生成 3 个文件，`content.csv`包含了诗词的全部数据，`vectors.csv`包含了诗词的每个段落经过模型编码之后的向量数据，`vector2poem.csv`包含了向量 id 到诗词 id 和段落的映射关系。
 
     ```
     ./generate.py -i ./chinese-poetry/quan_tang_shi/json -o out
     ```
 
-4.  使用 sqlite3 创建数据库和表，并导入`content.csv`。
+4.  使用 sqlite3 创建数据库和表，并导入`content.csv`和`vector2poem.csv`。
 
     ```
     sqlite3 poetry.db
 
     sqlite> CREATE TABLE poetry(id INT PRIMARY KEY NOT NULL, content TEXT);
+    sqlite> CREATE TABLE vector2poem(id INT PRIMARY KEY NOT NULL, poem INT NOT NULL, paragraph INT NOT NULL);
     sqlite> .mode csv
     sqlite> .import --skip 1 out/content.csv poetry
+    sqlite> .import --skip 1 out/vector2poem.csv vector2poem
     ```
 
 5.  在 Milvus 中创建名为`poetry`的 collection 并导入向量数据。导入数据可以通过 Attu 进行。注意 Milvus 导入的 csv 文件不能超过 150MB，如果`vectors.csv`文件过大，可以用 split 命令切分成小文件分多次导入。Collection 的信息如下。
@@ -61,8 +63,6 @@ NLP 模型使用清华大学提供的[BERT-CCPoem](https://github.com/THUNLP-AIP
     |               | Fields(* is the primary field):   |
     |               |  - *id INT64                      |
     |               |  - feature FLOAT_VECTOR dim: 512  |
-    |               |  - poem INT32                     |
-    |               |  - paragraph INT16                |
     +---------------+-----------------------------------+
     | Partitions    | - _default                        |
     +---------------+-----------------------------------+

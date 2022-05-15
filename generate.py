@@ -35,11 +35,14 @@ if __name__ == '__main__':
 
     vector_output = open(args.output + "/vectors.csv", "w+")
     content_output = open(args.output + "/content.csv", "w+")
+    vector2poem_output = open(args.output + "/vector2poem.csv", "w+")
 
     vector_writer = csv.writer(vector_output)
-    content_writer = csv.writer(content_output)
     vector_writer.writerow(["id", "feature", "poem", "paragraph"])
+    content_writer = csv.writer(content_output)
     content_writer.writerow(["id", "content"])
+    vector2poem_writer = csv.writer(vector2poem_output)
+    vector2poem_writer.writerow(["id", "poem", "paragraph"])
 
     vector_id = 0
     poem_id = 0
@@ -51,7 +54,8 @@ if __name__ == '__main__':
                 vectors = embedding.predict_vec_rep(poem["paragraphs"], model,
                                                     formatter)
                 for idx, v in enumerate(vectors):
-                    vector_writer.writerow([vector_id, v, poem_id, idx])
+                    vector2poem_writer.writerow([vector_id, poem_id, idx])
+                    vector_writer.writerow([vector_id, v])
                     vector_id += 1
                 poem_id += 1
                 if args.num > 0 and poem_id >= args.num:
@@ -62,3 +66,4 @@ if __name__ == '__main__':
 
     vector_output.close()
     content_output.close()
+    vector2poem_output.close()

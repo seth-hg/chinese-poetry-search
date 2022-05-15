@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-from bottle import route, get, request, run, template
-from pymilvus import Collection, connections
-import sqlite3
+from bottle import get, request, run, template
 
 import embedding
 import query
@@ -10,19 +8,17 @@ import query
 
 @get('/')
 def index():
-    #global m, formatter, collection
     kw = ""
     results = []
     if "keyword" in request.query:
         kw = request.query.keyword
         qv = embedding.predict_vec_rep([kw], model, formatter)[0]
-        db = sqlite3.connect('poetry.db')
-        results = query.query(collection, db, qv)
+        results = query.query(vdb, db, qv)
     return template("index", keyword=kw, results=results)
 
 
 if __name__ == '__main__':
-    global model, formatter, collection
+    global model, formatter, vdb, db
     parser = query.build_arg_parser()
     parser.add_argument("-a",
                         "--address",
@@ -37,9 +33,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     model, formatter = embedding.init(args.model)
-    connections.connect(alias="default",
-                        host=args.milvus_host,
-                        port=args.milvus_port)
-    collection = Collection(args.collection)
+    vdb = query.VdbClient(args.milvus_host, args.milvus_port, args.collection)
+    db = query.RdbClient(args.db)
 
     run(host=args.address, port=args.port)
+
+    vdb.close()
+    db.close()

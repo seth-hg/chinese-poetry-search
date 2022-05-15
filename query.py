@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-import os
 import json
-import logging
-import re
 import sqlite3
 
 from pymilvus import connections
@@ -12,52 +9,64 @@ from pymilvus import Collection
 
 import embedding
 
-logging.basicConfig(
-    format=
-    '%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s',
-    level=logging.INFO)
+
+class VdbClient:
+
+    def __init__(self, host, port, collection):
+        connections.connect(alias="default", host=host, port=port)
+        self.collection = Collection(collection)
+
+    def query(self, column, v, n):
+        search_params = {"metric_type": "L2", "params": {"ef": 32}}
+        results = self.collection.search(data=[v],
+                                         anns_field=column,
+                                         param=search_params,
+                                         limit=n,
+                                         expr=None,
+                                         consistency_level="Strong")
+        return (results[0].ids, results[0].distances)
+
+    def close(self):
+        pass
 
 
-def content_query(conn, ids):
-    c = conn.cursor()
-    cursor = c.execute("SELECT id, content FROM poetry WHERE id in (%s)" %
-                       ",".join([str(x) for x in ids]))
-    poem = {}
-    for row in cursor:
-        poem[row[0]] = json.loads(row[1])
+class RdbClient:
+
+    def __init__(self, endpoint):
+        self.endpoint = endpoint
+
+    def query(self, ids):
+        conn = sqlite3.connect(self.endpoint)
+        c = conn.cursor()
+        cursor = c.execute(
+            "SELECT vector2poem.id AS vid, poetry.id AS pid, "
+            "poetry.content AS poem, vector2poem.paragraph AS paragraph "
+            "FROM vector2poem,poetry "
+            "WHERE vector2poem.id in (%s) AND vector2poem.poem=poetry.id;" %
+            ",".join([str(x) for x in ids]))
+        data = []
+        for row in cursor:
+            data.append({
+                "vid": row[0],
+                "pid": row[1],
+                "content": json.loads(row[2]),
+                "paragraph": row[3]
+            })
+        conn.close()
+        return data
+
+    def close(self):
+        pass
+
+
+def query(vdb, db, q):
+    ids, scores = vdb.query("feature", q, 5)
+    poem = db.query(ids)
+
+    for idx, _ in enumerate(poem):
+        poem[idx]["score"] = scores[idx]
+
     return poem
-
-
-def vector_query(collection, v):
-    search_params = {"metric_type": "L2", "params": {"ef": 32}}
-    results = collection.search(data=[v],
-                                anns_field="feature",
-                                param=search_params,
-                                limit=10,
-                                expr=None,
-                                consistency_level="Strong")
-
-    return collection.query(expr="id in [%s]" %
-                            ",".join([str(x) for x in results[0].ids]),
-                            output_fields=["poem", "paragraph"],
-                            consistency_level="Strong")
-
-
-def query(collection, conn, q):
-    res = vector_query(collection, q)
-
-    poem_ids = set()
-    for r in res:
-        poem_ids.add(r["poem"])
-    poem = content_query(conn, set(poem_ids))
-
-    all_res = []
-    for idx, r in enumerate(res):
-        p = poem[r["poem"]]
-        all_res.append({"content": p, "paragraph": r["paragraph"]})
-    conn.close()
-
-    return all_res
 
 
 def build_arg_parser():
@@ -101,11 +110,11 @@ if __name__ == '__main__':
     model, formatter = embedding.init(args.model)
     qv = embedding.predict_vec_rep([args.query], model, formatter)[0]
 
-    connections.connect(alias="default",
-                        host=args.milvus_host,
-                        port=args.milvus_port)
-    collection = Collection(args.collection)
+    vdb = VdbClient(args.milvus_host, args.milvus_port, args.collection)
+    db = RdbClient(args.db)
 
-    db = sqlite3.connect(args.db)
-    result = query(collection, db, qv)
+    result = query(vdb, db, qv)
     print(result)
+
+    vdb.close()
+    db.close()
