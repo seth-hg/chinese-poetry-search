@@ -4,8 +4,7 @@ import argparse
 import json
 import sqlite3
 
-from pymilvus import connections
-from pymilvus import Collection
+from pyproximabe import Client
 
 import embedding
 
@@ -13,21 +12,23 @@ import embedding
 class VdbClient:
 
     def __init__(self, host, port, collection):
-        connections.connect(alias="default", host=host, port=port)
-        self.collection = Collection(collection)
+        self.client = Client(host, port)
+        self.collection = collection
 
     def query(self, column, v, n):
-        search_params = {"metric_type": "L2", "params": {"ef": 32}}
-        results = self.collection.search(data=[v],
-                                         anns_field=column,
-                                         param=search_params,
-                                         limit=n,
-                                         expr=None,
-                                         consistency_level="Strong")
-        return (results[0].ids, results[0].distances)
+        status, result = self.client.query(self.collection,
+                                           column, [v],
+                                           'VECTOR_FP32',
+                                           topk=n)
+        if not status.ok():
+            raise RuntimeError
+
+        ids = [d.primary_key for d in result.results[0]]
+        scores = [d.score for d in result.results[0]]
+        return (ids, scores)
 
     def close(self):
-        pass
+        self.client.close()
 
 
 class RdbClient:
@@ -76,17 +77,17 @@ def build_arg_parser():
                         help="path to model",
                         type=str,
                         default="./BERT_CCPoem_v1")
-    parser.add_argument("--milvus_host",
-                        help="milvus host",
+    parser.add_argument("--proxima_host",
+                        help="proxima host",
                         type=str,
                         default="localhost")
-    parser.add_argument("--milvus_port",
-                        help="milvus port",
+    parser.add_argument("--proxima_port",
+                        help="proxima port",
                         type=str,
-                        default="19530")
+                        default="16000")
     parser.add_argument("-c",
                         "--collection",
-                        help="milvus collection",
+                        help="proxima collection",
                         type=str,
                         default="poetry")
     parser.add_argument("-d",
@@ -110,7 +111,7 @@ if __name__ == '__main__':
     model, formatter = embedding.init(args.model)
     qv = embedding.predict_vec_rep([args.query], model, formatter)[0]
 
-    vdb = VdbClient(args.milvus_host, args.milvus_port, args.collection)
+    vdb = VdbClient(args.proxima_host, args.proxima_port, args.collection)
     db = RdbClient(args.db)
 
     result = query(vdb, db, qv)

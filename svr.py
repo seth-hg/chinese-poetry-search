@@ -33,7 +33,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     model, formatter = embedding.init(args.model)
-    vdb = query.VdbClient(args.milvus_host, args.milvus_port, args.collection)
+    vdb = query.VdbClient(args.proxima_host, args.proxima_port,
+                          args.collection)
     db = query.RdbClient(args.db)
 
     run(host=args.address, port=args.port)

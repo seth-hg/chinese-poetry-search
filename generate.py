@@ -33,12 +33,10 @@ if __name__ == '__main__':
 
     model, formatter = embedding.init(args.model)
 
-    vector_output = open(args.output + "/vectors.csv", "w+")
+    vector_output = open(args.output + "/vectors.txt", "w+")
     content_output = open(args.output + "/content.csv", "w+")
     vector2poem_output = open(args.output + "/vector2poem.csv", "w+")
 
-    vector_writer = csv.writer(vector_output)
-    vector_writer.writerow(["id", "feature", "poem", "paragraph"])
     content_writer = csv.writer(content_output)
     content_writer.writerow(["id", "content"])
     vector2poem_writer = csv.writer(vector2poem_output)
@@ -55,7 +53,8 @@ if __name__ == '__main__':
                                                     formatter)
                 for idx, v in enumerate(vectors):
                     vector2poem_writer.writerow([vector_id, poem_id, idx])
-                    vector_writer.writerow([vector_id, v])
+                    vector_output.write(
+                        "%d;%s\n" % (vector_id, " ".join([str(x) for x in v])))
                     vector_id += 1
                 poem_id += 1
                 if args.num > 0 and poem_id >= args.num:
