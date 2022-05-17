@@ -38,7 +38,7 @@ if __name__ == '__main__':
     vector2poem_output = open(args.output + "/vector2poem.csv", "w+")
 
     vector_writer = csv.writer(vector_output)
-    vector_writer.writerow(["id", "feature", "poem", "paragraph"])
+    vector_writer.writerow(["id", "feature"])
     content_writer = csv.writer(content_output)
     content_writer.writerow(["id", "content"])
     vector2poem_writer = csv.writer(vector2poem_output)
